@@ -1,0 +1,56 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+trigger:
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  imageRepository: 'viedsa/fastapi-items-api'
+  dockerRegistryServiceConnection: 'dockerhub-service-connection'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+
+stages:
+- stage: Test
+  displayName: 'Build and test'
+  jobs:
+  - job: UnitTests
+    displayName: 'Run unit tests'
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.12'
+      displayName: 'Use Python 3.12'
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r prereqs.txt
+        python -m pytest -v
+      displayName: 'Install dependencies and run pytest'
+
+- stage: Publish
+  displayName: 'Build and publish Docker image'
+  dependsOn: Test
+  condition: succeeded()
+  jobs:
+  - job: Docker
+    steps:
+    - task: Docker@2
+      displayName: 'Build and push image'
+      inputs:
+        command: buildAndPush
+        repository: '$(imageRepository)'
+        dockerfile: '$(dockerfilePath)'
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        tags: |
+          $(Build.BuildId)
+          latest
